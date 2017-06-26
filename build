@@ -1,0 +1,100 @@
+#!/bin/bash
+
+
+#######################################################################################
+### Build config
+CMAKE=cmake
+WHICH_GCC=/usr/gcc-6.2
+WHICH_GDB=/usr/gdb-7.12/bin
+#######################################################################################
+
+
+export CXX=$WHICH_GCC/bin/g++
+export CC=$WHICH_GCC/bin/gcc
+export LIBRARY_PATH=./lib:$WHICH_GCC/lib:$WHICH_GCC/lib64
+export LD_LIBRARY_PATH=./lib:$WHICH_GCC/lib:$WHICH_GCC/lib64
+    
+
+APP=toy
+ROOT_DIR=`pwd`
+
+run_in_sandbox()
+{
+    mkdir -p $ROOT_DIR/sandbox
+    cd $ROOT_DIR/sandbox
+
+    ulimit -c unlimited
+
+    if [[ -z $3 ]]; then
+        $1 $2 &
+    else
+        $1 $2
+    fi
+
+    cd $ROOT_DIR
+}
+
+build()
+{
+    BUILD_DIR=$ROOT_DIR/$1
+
+    mkdir -p $BUILD_DIR
+    cd $BUILD_DIR
+    $CMAKE -DCMAKE_BUILD_TYPE=$1 $ROOT_DIR
+    make
+    if [[ 0 != $? ]]; then
+        exit $?
+    fi
+    cd $ROOT_DIR
+}
+
+if [[ $1 == "clean" ]]; then
+    rm -fr debug release sandbox
+ 
+elif [[ $1 == "gdb" ]]; then
+    
+    if [[ $2 != "release" ]]; then
+        CFG=debug
+    else
+        CFG=release
+    fi
+
+    build $CFG
+    mkdir -p $ROOT_DIR/sandbox
+    cd $ROOT_DIR/sandbox
+    $WHICH_GDB/gdb $ROOT_DIR/$CFG/$APP
+    cd $ROOT_DIR
+
+elif [[ $1 == "run" ]]; then
+    
+    if [[ $2 != "release" ]]; then
+        CFG=debug
+    else
+        CFG=release
+    fi
+
+    if [[ -z $2 ]]; then
+        PARAM=$ROOT_DIR/config/config.ini
+    else
+        PARAM=$2
+    fi
+
+    run_in_sandbox $ROOT_DIR/$CFG/$APP $PARAM
+
+else
+    if [[ -z $1 ]]; then
+        CFG=release
+    else
+        CFG=$1
+    fi
+
+    if [[ -z $2 ]]; then
+        PARAM=$ROOT_DIR/config/config.ini
+    else
+        PARAM=$2
+    fi
+
+    build $CFG $APP
+    run_in_sandbox $ROOT_DIR/$CFG/$APP $PARAM
+
+fi
